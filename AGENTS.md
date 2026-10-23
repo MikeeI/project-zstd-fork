@@ -310,6 +310,48 @@ This is navigation and investigation context, not implementation authorization o
 - `tests/regression/data.c` owns corpus URLs and checksums; `config.c` and `method.c` own profiles and API paths.
 - Treat `tests/regression/results.csv` as a historical size snapshot, not a current speed measurement or dictionary-inclusive total.
 
+### Fixed-budget compression experiments
+
+- Separate direct encoder gains at identical settings from better configurations found within identical resource limits.
+- Define compression CPU, peak memory, decoder CPU/memory, and any permitted regression margins before searching.
+- Build baseline and candidate from the same revision and flags, differing only in the scoped encoder change.
+- Fix input bytes, ordering, API path, dictionaries, frame/flush boundaries, and worker count for direct comparisons.
+- Preserve corpus hashes and generation seeds; separate tuning, validation, and adversarial boundary inputs.
+- Report total stored bytes, per-data-class results, and individual regressions rather than averaging file ratios.
+- Fix workload weights before measurement and include any additionally required dictionary or prefix bytes.
+- Use paired baseline/candidate runs with balanced order and consistent affinity, warmup, and cache conditions.
+- Record CPU time across all participating threads separately from elapsed time; do not compare traced and release timings.
+- Require the upper uncertainty bound to satisfy the declared resource limit; an inconclusive result is not a free gain.
+- `benchfn.c` selects the fastest timed sample; retain independent runs rather than treating that value as a distribution.
+- Measure peak live codec allocations separately from timing using `ZSTD_customMem` where applicable.
+- Account separately for caller buffers, dictionaries, thread stacks, allocator overhead, and decoder requirements.
+- Paramgrill's window-plus-context memory value and `ZSTD_sizeof_CCtx()` snapshots do not prove process peak usage.
+- Diagnose a heuristic with estimated costs, chosen alternatives, actual encoded sizes, and decision frequency.
+- Diagnostic alternative encodings must start from equivalent state and must not mutate the primary encoder's history.
+- Never clone a live context with a raw struct copy; use deterministic replay or explicitly owned diagnostic state.
+- Keep exhaustive alternative encoding and diagnostic counters out of the release build used for timing.
+- A locally smaller block can worsen later table reuse or repcodes; validate complete frames and subsequent blocks.
+- Reject a candidate that cannot demonstrate a reachable harmful decision or measurable redundant work before broad benchmarking.
+- Reuse existing benchmarks and focused fuzz targets instead of creating a permanent experiment framework by default.
+- `ZSTD_generateSequences()` is explicitly debugging-only and flawed; sequence replay alone is not production-path proof.
+- Instrumentation, experimental patches, and new builds require authorization beyond documenting a measurement plan.
+
+### Candidate-specific measurement seams
+
+These are experiment designs, not confirmed compression gains or authorization to implement them.
+
+- For literal-header estimates, compare `ZSTD_estimateBlockSize_literal()` with the Raw/RLE writers in `zstd_compress_literals.c`.
+- Record each split candidate's whole/left/right estimate, literal type, and literal count before scratch state is overwritten.
+- `ZSTD_deriveBlockSplitsHelper()` skips ranges below 300 sequences; tiny literal examples alone do not exercise it.
+- Count old/new split-decision differences before doing expensive alternative encodings or release timing.
+- For FSE selection, retain code streams, counts, and previous tables from `ZSTD_buildSequencesStatistics()`.
+- `ZSTD_buildCTable()` mutates counts for the last symbol; each diagnostic alternative needs independent working data.
+- Compare complete sequence-section bytes for valid table choices, not entropy estimates or independent symbol averages.
+- For Huffman reuse, count probing builds and final rebuilds at both `HUF_optimalTableLog()` callers.
+- Check initialized table entries and effective depth against the rebuilt winner; equal requested depth alone is insufficient.
+- An unchanged-table reuse candidate must preserve frame bytes before claiming CPU savings.
+- `tests/fullbench.c` has sequence-encoding scenarios, but its sequence-generation preparation has the debugging-only API limits above.
+
 ### Avoid rediscovering false positives
 
 - Batch compression already reuses its context, buffers, and prepared dictionary; generic pooling advice adds no new optimization.
