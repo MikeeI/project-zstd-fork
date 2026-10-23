@@ -4689,6 +4689,19 @@ static size_t ZSTD_compress_frameChunk(ZSTD_CCtx* cctx,
                 }
             }  /* if (ZSTD_useTargetCBlockSize(&cctx->appliedParams))*/
 
+            /* Tiny blocks bypass the per-path RLE checks.
+             * Convert afterward to preserve sequence skipping and block-state updates.
+             * The true first block must remain non-RLE for CLI decoders <= v1.4.3. */
+            if (blockSize > 1
+              && blockSize < MIN_CBLOCK_SIZE+ZSTD_blockHeaderSize+1+1
+              && !cctx->isFirstBlock
+              && !cctx->seqCollector.collectSequences
+              && ZSTD_isRLE(ip, blockSize)) {
+                assert(cSize == blockSize + ZSTD_blockHeaderSize);
+                cSize = ZSTD_rleCompressBlock(op, dstCapacity, *ip, blockSize, lastBlock);
+                FORWARD_IF_ERROR(cSize, "ZSTD_rleCompressBlock failed");
+            }
+
             /* @savings is employed to ensure that splitting doesn't worsen expansion of incompressible data.
              * Without splitting, the maximum expansion is 3 bytes per full block.
              * An adversarial input could attempt to fudge the split detector,
