@@ -4322,6 +4322,51 @@ static int basicUnitTests(U32 const seed, double compressibility)
         }
         { CHECK_NEWV(regenSize, ZSTD_decompress(decodedBuffer, sampleSize, compressedBuffer, cSize));
           if (regenSize!=sampleSize) goto _output_error; }
+        {   enum { rleOrdinary, rlePostSplit, rleTarget, rleModeCount };
+            size_t const prefixSize = ZSTD_BLOCKSIZE_MAX;
+            size_t const maxTailSize = 6;
+            size_t const checksumSize = 4;
+            size_t const rleBlockSize = ZSTD_blockHeaderSize + 1;
+            ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+            int mode;
+            size_t tailSize;
+            CHECK(cctx != NULL);
+            memset(CNBuffer, 'a', prefixSize);
+            memset((BYTE*)CNBuffer + prefixSize, 'b', maxTailSize);
+            for (mode = rleOrdinary; mode < rleModeCount; ++mode) {
+                CHECK_Z(ZSTD_CCtx_reset(cctx, ZSTD_reset_session_and_parameters));
+                CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, 3));
+                CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 1));
+                CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_splitAfterSequences,
+                        mode == rlePostSplit ? ZSTD_ps_enable : ZSTD_ps_disable));
+                CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_targetCBlockSize,
+                        mode == rleTarget ? 64 : 0));
+                for (tailSize = 2; tailSize <= maxTailSize; ++tailSize) {
+                    ZSTD_FrameHeader zfh;
+                    const BYTE* tail;
+                    size_t const tinySampleSize = prefixSize + tailSize;
+                    size_t const tinyCSize = ZSTD_compress2(cctx, compressedBuffer,
+                            ZSTD_compressBound(tinySampleSize), CNBuffer, tinySampleSize);
+                    CHECK_Z(tinyCSize);
+                    CHECK(ZSTD_getFrameHeader(&zfh, compressedBuffer, tinyCSize) == 0);
+                    CHECK(tinyCSize >= zfh.headerSize + ZSTD_blockHeaderSize
+                            + rleBlockSize + checksumSize);
+                    CHECK(((MEM_readLE24((const BYTE*)compressedBuffer + zfh.headerSize)
+                            >> 1) & 3) != bt_rle);
+                    tail = (const BYTE*)compressedBuffer + tinyCSize
+                            - checksumSize - rleBlockSize;
+                    CHECK(MEM_readLE24(tail) == ((U32)tailSize << 3)
+                            + ((U32)bt_rle << 1) + 1);
+                    CHECK(tail[ZSTD_blockHeaderSize] == 'b');
+                    {   CHECK_NEWV(regenSize, ZSTD_decompress(decodedBuffer,
+                                tinySampleSize, compressedBuffer, tinyCSize));
+                        CHECK(regenSize == tinySampleSize);
+                        CHECK(memcmp(decodedBuffer, CNBuffer, tinySampleSize) == 0);
+                    }
+                }
+            }
+            ZSTD_freeCCtx(cctx);
+        }
         DISPLAYLEVEL(3, "OK \n");
     }
 
