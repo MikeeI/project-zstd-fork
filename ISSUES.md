@@ -16,9 +16,9 @@ Next finding ID: ISSUE-011
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [ISSUE-001](issues/ISSUE-001.md) | CLI: skip the unused batch size prepass outside patch mode | Investigating | Not-Selected | Not-Selected | Low | Select scoped implementation authorization | Not published. |
 | [ISSUE-002](issues/ISSUE-002.md) | CLI: avoid zero-distance seeks in automatic sparse decompression | Investigating | Not-Selected | Not-Selected | Low | Select scoped implementation authorization | Not published. |
-| [ISSUE-004](issues/ISSUE-004.md) | Huffman: preserve compression opportunities for small alphabets | Implementing | Pull-Request-Implementation | Not-Selected | Medium | Verify scoped encoder correction | Not published. |
-| [ISSUE-005](issues/ISSUE-005.md) | FSE: avoid basic encoding for two identical sequence codes | Implementing | Pull-Request-Implementation | Not-Selected | Medium | Verify scoped encoder correction | Not published. |
-| [ISSUE-006](issues/ISSUE-006.md) | Compression: encode short repeated follow-up blocks as RLE | Implementing | Pull-Request-Implementation | Not-Selected | Low | Verify scoped encoder correction | Not published. |
+| [ISSUE-004](issues/ISSUE-004.md) | Huffman: preserve compression opportunities for small alphabets | Implementing | Pull-Request-Implementation | Not-Selected | Medium | Select publication target | Not published. |
+| [ISSUE-005](issues/ISSUE-005.md) | FSE: avoid basic encoding for two identical sequence codes | Implementing | Pull-Request-Implementation | Not-Selected | Medium | Select publication target | Not published. |
+| [ISSUE-006](issues/ISSUE-006.md) | Compression: encode short repeated follow-up blocks as RLE | Implementing | Pull-Request-Implementation | Not-Selected | Low | Select publication target | Not published. |
 | [ISSUE-007](issues/ISSUE-007.md) | Compression: include Raw/RLE literal headers in block-size estimates | Investigating | Not-Selected | Not-Selected | Low | Establish affected sizing decisions | Not published. |
 | [ISSUE-008](issues/ISSUE-008.md) | Optimal parser: reuse invariant code-price components | Investigating | Not-Selected | Not-Selected | Medium | Select existing PR validation scope | https://github.com/facebook/zstd/pull/4732 |
 | [ISSUE-009](issues/ISSUE-009.md) | Huffman: evaluate omitted minimum-depth candidates | Investigating | Not-Selected | Not-Selected | Low | Select minimum-depth validation scope | Not published. |
