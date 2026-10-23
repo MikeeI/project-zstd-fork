@@ -104,6 +104,9 @@ Keep changes focused and update user-facing documentation when a public API or C
 - New findings start with `State: Investigating`, `Authorized-Work: Not-Selected`, and `Publication-Target: Not-Selected`.
 - New findings use `External-Reference: Not published.` until an external reference exists.
 - Keep findings Investigating until currentness, prior art, impact, and correction value are evidence-backed.
+- Open findings require a concrete repository-owned problem, evidence of its reachable impact, and a bounded correction to investigate.
+- Usage tips, level comparisons, benchmark baselines, and mistakes in an agent's report are not repository issues.
+- Keep reusable investigation guidance here; archive misclassified findings without deleting their evidence or reusing their IDs.
 - Clone detectors, AST matches, text similarity, shared names, and TODOs produce candidates only.
 - A duplication finding requires shared change pressure, realistic drift, and simpler consolidation.
 - The user selects `Authorized-Work` for each finding.
@@ -251,13 +254,18 @@ This is navigation and investigation context, not implementation authorization o
 ### Compression ratio and CPU ownership
 
 - `lib/compress/clevels.h::ZSTD_defaultCParameters` owns level presets, including separate source-size classes.
+- `zstd_compress.c::ZSTD_getCParams_internal()` selects size classes at 16, 128, and 256 KiB; unknown sizes select differently.
 - `lib/compress/zstd_compress.c::ZSTD_selectBlockCompressor()` dispatches by strategy, dictionary mode, and row-matchfinder mode.
 - `zstd_fast.c` and `zstd_double_fast.c` own fast parsers; `zstd_lazy.c` owns greedy/lazy and row-based matching.
 - `zstd_opt.c` owns optimal parsing; `zstd_ldm.c` owns long-distance matching.
+- `zstd_opt.c::ZSTD_getMatchPrice()` deliberately favors decoder speed through offset and sequence-price penalties.
+- `lib/common/zstd_internal.h::ZSTD_OPT_NUM` bounds optimal parsing; larger `targetLength` values do not bypass it.
+- `zstdmt_compress.c::ZSTDMT_computeTargetJobLog()` and `ZSTDMT_computeOverlapSize()` own MT job sizing and history overlap.
 - `zstd_compress.c::ZSTD_optimalBlockSize()` gates pre-splitting; `zstd_preSplit.c::ZSTD_splitBlock()` implements fingerprint-based choices.
 - Pre-splitting requires full 128 KiB blocks and prior savings; bypassing that gate risks expansion guarantees.
 - `zstd_compress.c::ZSTD_resolveBlockSplitterMode()` selects post-sequence splitting for stronger strategies.
 - `zstd_compress_superblock.c` owns the separate `targetCBlockSize` path; do not conflate it with ordinary pre-splitting.
+- `zstd_compress.c::ZSTD_compress_frameChunk()` selects the target-size path instead of ordinary post-sequence splitting when enabled.
 - `zstd_compress_literals.c::ZSTD_compressLiterals()` owns literal thresholds, raw/RLE fallback, and Huffman-table state.
 - `huf_compress.c::HUF_compress_internal()` owns incompressibility sampling, histograms, table validation, and table reuse.
 - `huf_compress.c::HUF_optimalTableLog()` probes tree depths; removing rebuilds requires preserving the selected table, not merely the last candidate.
@@ -266,6 +274,10 @@ This is navigation and investigation context, not implementation authorization o
 - `zstd_compress.c::ZSTD_initLocalDict()` already caches the prepared local dictionary across session-only resets.
 - `zstd_cwksp.h` owns reusable workspace allocation; inspect its phase and initialization invariants before proposing allocation reuse.
 - `lib/zstd.h` owns public and experimental parameter contracts, including stable buffers, size hints, dictionaries, and splitters.
+- `lib/zdict.h` documents dictionary suitability and training; `lib/dictBuilder/fastcover.c` and `programs/dibio.c` implement it.
+- `lib/zstd.h::ZSTD_CCtx_refCDict()` documents which context parameters a prepared dictionary supersedes.
+- `lib/zstd.h::ZSTD_CCtx_refPrefix()` and `programs/zstd.1.md` document prefix lifetime and `--patch-from` requirements.
+- `lib/zstd.h::ZSTD_EndDirective` distinguishes frame-ending history loss from flushing within an existing frame.
 - `lib/decompress/zstd_decompress.c` owns frame/stream dispatch; `zstd_decompress_block.c` and `huf_decompress.c` own block and Huffman decoding.
 
 ### Measurement and verification entry points
@@ -273,6 +285,14 @@ This is navigation and investigation context, not implementation authorization o
 - Build the local release CLI with `make -C programs -j8 zstd-release`; invoke `programs/zstd`, not a global installation.
 - `programs/Makefile` owns CLI feature detection and hashed object directories; `lib/libzstd.mk` owns compiler defaults.
 - `programs/benchzstd.c` and `benchfn.c` own `-b` timing; use repeated `programs/zstd -b3 -e3 -i1 CORPUS` runs for an initial signal.
+- Record the binary hash, source revision, compiler flags, and build provenance separately; a version string does not link a binary to a checkout.
+- Enable `pipefail` for measurement pipelines so a failed compressor cannot appear as a successful zero-byte result.
+- Inspect benchmark diagnostics: the final hash-mismatch warning in `BMK_benchMemAdvancedNoAlloc()` does not return failure.
+- Verify selected outputs separately with bytewise roundtrips through the actual CLI or API path.
+- `benchzstd.c::BMK_initCCtx()` maps one benchmark worker to zero; `-b -T1` does not reproduce ordinary CLI `-T1`.
+- `tests/paramgrill.c` searches eight parameters; `tests/README.md` documents speed, memory, and runtime constraints.
+- Paramgrill does not search row-matchfinder, LDM, or splitter switches; compare relevant omitted controls separately.
+- Bound Paramgrill with `-t#`; its table-generation mode writes `grillResults.txt`.
 - A reproducible source corpus is `git archive --format=tar --output=CORPUS REVISION lib programs`.
 - Separate codec timing from filesystem timing; `-b` does not measure ordinary CLI file I/O.
 - For sparse output, compare `strace -f -c -e trace=lseek,write` counts against `--no-sparse` on real destination files.
@@ -282,14 +302,26 @@ This is navigation and investigation context, not implementation authorization o
 - `tests/cli-tests/run.py` accepts test paths relative to `tests/cli-tests/` and explicit `--zstd`/`--datagen` paths.
 - Existing focused cases include `compression/multiple-files.sh`, `compression/stream-size.sh`, and `compression/adapt.sh`.
 - Literal and dictionary contracts have `compression/compress-literals.sh` and `dictionaries/golden.sh`.
+- `compression/row-match-finder.sh` and `compression/long-distance-matcher.sh` cover their respective CLI switches.
+- `tests/fuzzer.c` contains incompressible-input splitter checks; `tests/fuzz/zstd_helpers.c` varies splitter parameters.
+- `tests/cli-tests/determinism/` owns exact bitstream expectations that encoder changes can intentionally affect.
 - `tests/playTests.sh` owns sparse, odd-sized sparse, async-I/O, and patch-from scenarios; inspect those sections before choosing a broader run.
 - `tests/regression/README.md` documents corpus-based ratio comparisons; do not overwrite `results.csv` merely to run an investigation.
+- `tests/regression/data.c` owns corpus URLs and checksums; `config.c` and `method.c` own profiles and API paths.
+- Treat `tests/regression/results.csv` as a historical size snapshot, not a current speed measurement or dictionary-inclusive total.
 
 ### Avoid rediscovering false positives
 
 - Batch compression already reuses its context, buffers, and prepared dictionary; generic pooling advice adds no new optimization.
 - Huffman sampling, table reuse, literal thresholds, and block-splitting heuristics already exist.
 - Stronger levels, larger windows, forced literal compression, and extra splitting are trade-offs, not free ratio improvements.
+- Smaller independent chunks can change both history and size-dependent presets; hold parameters fixed to isolate either cause.
+- Neither exact source sizes nor single-thread mode guarantee smaller output; compare the actual workload and output path.
+- Dictionary and prefix gains must include any additionally required side data and preserve decoder availability.
+- Keep tuning and validation inputs separate; one successful sample does not justify a new global preset.
+- Related size-tier discussion: https://github.com/facebook/zstd/issues/3729
+- Existing splitter design and expansion constraints: https://github.com/facebook/zstd/pull/4136
+- Optimal-parser parameter limits: https://github.com/facebook/zstd/issues/2730
 - The 2026-10-23 source-corpus baseline was 4,014,080 bytes → 738,793 bytes at level 3; it proves no improvement.
 - That baseline used GCC 13.3.0, release `-O3`, Ryzen 9 5950X, and three one-second benchmark runs.
 - Sparse syscall reduction is not a demonstrated speedup: nine local runs measured 71.2 ± 1.2 ms versus 69.5 ± 1.9 ms with `--no-sparse` on 64 MiB random data.
