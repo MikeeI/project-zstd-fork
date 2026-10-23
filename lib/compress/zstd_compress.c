@@ -3711,8 +3711,12 @@ ZSTD_buildBlockEntropyStats_literals(void* const src, size_t srcSize,
             hufMetadata->hType = set_rle;
             return 0;
         }
-        if (largest <= (srcSize >> 7)+4) {
-            /* heuristic: likely not compressible */
+        if (largest <= (srcSize >> 7)+4
+          && (srcSize <= HUF_MAX_SYMBOLS_FOR_7_BITS
+            || HUF_cardinality(countWksp, maxSymbolValue)
+                > (srcSize < HUF_MAX_SYMBOLS_FOR_7_BITS * HUF_MIN_INPUT_PER_SYMBOL
+                    ? srcSize / HUF_MIN_INPUT_PER_SYMBOL : HUF_MAX_SYMBOLS_FOR_7_BITS))) {
+            /* Avoid small random-input trees, but try repeatedly observed small alphabets. */
             DEBUGLOG(5, "set_basic - no gain");
             hufMetadata->hType = set_basic;
             return 0;
