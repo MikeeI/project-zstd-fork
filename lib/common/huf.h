@@ -116,6 +116,11 @@ typedef enum {
  * ****************************************/
 #define HUF_OPTIMAL_DEPTH_THRESHOLD ZSTD_btultra
 
+/* A balanced alphabet this small still admits a seven-bit code per symbol. */
+#define HUF_MAX_SYMBOLS_FOR_7_BITS 128
+/* Require two observations per symbol on average before trying a small-alphabet tree. */
+#define HUF_MIN_INPUT_PER_SYMBOL 2
+
 /*! HUF_compress() does the following:
  *  1. count symbol occurrence from source[] into table count[] using FSE_count() (exposed within "fse.h")
  *  2. (optional) refine tableLog using HUF_optimalTableLog()

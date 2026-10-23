@@ -1378,13 +1378,25 @@ HUF_compress_internal (void* dst, size_t dstSize,
             CHECK_V_F(largestEnd, HIST_count_simple (table->count, &maxSymbolValueEnd, (const BYTE*)src + srcSize - SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE, SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE) );
             largestTotal += largestEnd;
         }
-        if (largestTotal <= ((2 * SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE) >> 7)+4) return 0;   /* heuristic : probably not compressible enough */
+        /* count contains the last sample, not the union of both samples.
+         * A small sample alphabet requires a full histogram before rejection. */
+        if (largestTotal <= ((2 * SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE) >> 7)+4
+          && HUF_cardinality(table->count, maxSymbolValue) > HUF_MAX_SYMBOLS_FOR_7_BITS)
+            return 0;   /* heuristic : probably not compressible enough */
     }
 
     /* Scan input and build symbol stats */
     {   CHECK_V_F(largest, HIST_count_wksp (table->count, &maxSymbolValue, (const BYTE*)src, srcSize, table->wksps.hist_wksp, sizeof(table->wksps.hist_wksp)) );
         if (largest == srcSize) { *ostart = ((const BYTE*)src)[0]; return 1; }   /* single symbol, rle */
-        if (largest <= (srcSize >> 7)+4) return 0;   /* heuristic : probably not compressible enough */
+        /* Small alphabets can compress despite low peak frequency. Preserve the
+         * tiny-input shortcut and require repeated observations to avoid building
+         * trees for small random inputs whose apparent alphabet is incomplete. */
+        if (largest <= (srcSize >> 7)+4
+          && (srcSize <= HUF_MAX_SYMBOLS_FOR_7_BITS
+            || HUF_cardinality(table->count, maxSymbolValue)
+                > (srcSize < HUF_MAX_SYMBOLS_FOR_7_BITS * HUF_MIN_INPUT_PER_SYMBOL
+                    ? srcSize / HUF_MIN_INPUT_PER_SYMBOL : HUF_MAX_SYMBOLS_FOR_7_BITS)))
+            return 0;   /* heuristic : probably not compressible enough */
     }
     DEBUGLOG(6, "histogram detail completed (%zu symbols)", showU32(table->count, maxSymbolValue+1));
 
