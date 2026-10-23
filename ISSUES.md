@@ -8,7 +8,7 @@ This file owns `Next finding ID` and projects current issue-file state.
 When a row disagrees with its issue file, correct the row from the issue file in the same task.
 Apply the finding eligibility rules in `AGENTS.md`; tuning tips and reporting lessons do not belong in Open-Findings.
 
-Next finding ID: ISSUE-004
+Next finding ID: ISSUE-008
 
 ## Open-Findings
 
@@ -16,6 +16,10 @@ Next finding ID: ISSUE-004
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [ISSUE-001](issues/ISSUE-001.md) | CLI: skip the unused batch size prepass outside patch mode | Investigating | Not-Selected | Not-Selected | Low | Select scoped implementation authorization | Not published. |
 | [ISSUE-002](issues/ISSUE-002.md) | CLI: avoid zero-distance seeks in automatic sparse decompression | Investigating | Not-Selected | Not-Selected | Low | Select scoped implementation authorization | Not published. |
+| [ISSUE-004](issues/ISSUE-004.md) | Huffman: preserve compression opportunities for small alphabets | Implementing | Pull-Request-Implementation | Not-Selected | Medium | Verify scoped encoder correction | Not published. |
+| [ISSUE-005](issues/ISSUE-005.md) | FSE: avoid basic encoding for two identical sequence codes | Implementing | Pull-Request-Implementation | Not-Selected | Medium | Verify scoped encoder correction | Not published. |
+| [ISSUE-006](issues/ISSUE-006.md) | Compression: encode short repeated follow-up blocks as RLE | Implementing | Pull-Request-Implementation | Not-Selected | Low | Verify scoped encoder correction | Not published. |
+| [ISSUE-007](issues/ISSUE-007.md) | Compression: include Raw/RLE literal headers in block-size estimates | Investigating | Not-Selected | Not-Selected | Low | Establish affected sizing decisions | Not published. |
 
 ## Archived-Findings
 
