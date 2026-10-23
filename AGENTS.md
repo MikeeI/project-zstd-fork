@@ -80,6 +80,12 @@ Keep changes focused and update user-facing documentation when a public API or C
 - Reproduce claimed bugs against current upstream and run the narrowest conclusive verification.
 - Publish one coherent root cause per issue, comment, or pull request.
 - Follow `CONTRIBUTING.md`, including the CLA requirement and fork CI before upstream submission.
+- Use `.github/PULL_REQUEST_TEMPLATE.md` and disclose tools used for discovery, code, and tests.
+- Bug fixes need a reproducer or a test that fails without the fix.
+- `lib/legacy/` is frozen except for memory-safety and regression fixes, each accompanied by a test.
+- Security findings follow `SECURITY.md`; do not submit a public security issue or pull request.
+- Performance evidence must identify CPU, compiler, flags, data, and repeated runs without generalizing one configuration.
+- Non-x86-64/AArch64 performance changes must be small, architecture-guarded, benchmarked, and pass existing CI.
 
 ## Finding and Contribution Ledger
 
