@@ -222,6 +222,83 @@ Do not hand-edit generated documentation without checking its owning generator.
 - `CMakeLists.txt`, `build/cmake/CMakeLists.txt`, `build/meson/meson.build`, `Package.swift` — supported non-Make integrations.
 - `CONTRIBUTING.md`, `TESTING.md` — contributor workflow, coding rules, CI tiers, and performance expectations.
 
+## Performance Investigation Map
+
+This map was checked against `upstream/dev@49cf51799ea051457f57243527aa2058f999f005` on 2026-10-23.
+Use symbols as navigation anchors; line numbers and defaults can move with upstream.
+Start with the affected flow below instead of repeating a repository-wide scan.
+This is navigation and investigation context, not implementation authorization or a substitute for finding records.
+
+### CLI I/O and resource ownership
+
+- `programs/zstdcli.c::main()` owns option parsing and dispatch into single-file or multiple-file operations.
+- `programs/fileio_types.h` owns `FIO_prefs_t`; `fileio.c::FIO_createPreferences()` initializes its runtime defaults.
+- Compression follows `FIO_compressMultipleFilenames()` → `FIO_compressFilename_srcFile()` → `FIO_compressFilename_dstFile()` → `FIO_compressFilename_internal()` → `FIO_compressZstdFrame()`.
+- `fileio.c::FIO_createCResources()` owns the reusable compression context, dictionary, and synchronous I/O buffers.
+- `fileio.c::FIO_SyncCompressIO_*()` implements compression I/O; do not assume compression uses the asynchronous pools.
+- `fileio.c::FIO_getLargestFileSize()` performs the batch size prepass; `FIO_createCResources()` consumes its result only for patch-from parameter selection.
+- `programs/util.c::UTIL_getFileSize()` performs a filesystem stat; `UTIL_getFileSizeStat()` consumes existing metadata.
+- `fileio.c::FIO_compressFilename_srcFile()` and `FIO_compressFilename_internal()` own later source validation and sizing.
+- Decompression resources originate in `fileio.c::FIO_createDResources()` and use read/write pools from `fileio_asyncio.c`.
+- `fileio_asyncio.c::AIO_IOPool_*()` owns jobs, buffers, mutexes, worker activation, draining, and destruction.
+- `fileio.c::FIO_decompressSrcFile()` disables async dispatch for known inputs smaller than three maximum blocks.
+- Sparse output has two owners: `fileio.c::FIO_sparseWrite()` and `fileio_asyncio.c::AIO_fwriteSparse()`.
+- Both sparse writers scan 32 KiB segments; their matching end functions materialize the final zero byte.
+- `fileio.c::FIO_openDstFile()` owns regular-file detection, sparse-mode eligibility, and stdio buffering.
+- `programs/platform.h::ZSTD_SPARSE_DEFAULT` disables sparse output by default on macOS, unlike Linux.
+- `fileio.c::FIO_compressZstdFrame()` collects adaptive statistics; `zstdmt_compress.c::ZSTDMT_toFlushNow()` locks the oldest active job.
+
+### Compression ratio and CPU ownership
+
+- `lib/compress/clevels.h::ZSTD_defaultCParameters` owns level presets, including separate source-size classes.
+- `lib/compress/zstd_compress.c::ZSTD_selectBlockCompressor()` dispatches by strategy, dictionary mode, and row-matchfinder mode.
+- `zstd_fast.c` and `zstd_double_fast.c` own fast parsers; `zstd_lazy.c` owns greedy/lazy and row-based matching.
+- `zstd_opt.c` owns optimal parsing; `zstd_ldm.c` owns long-distance matching.
+- `zstd_compress.c::ZSTD_optimalBlockSize()` gates pre-splitting; `zstd_preSplit.c::ZSTD_splitBlock()` implements fingerprint-based choices.
+- Pre-splitting requires full 128 KiB blocks and prior savings; bypassing that gate risks expansion guarantees.
+- `zstd_compress.c::ZSTD_resolveBlockSplitterMode()` selects post-sequence splitting for stronger strategies.
+- `zstd_compress_superblock.c` owns the separate `targetCBlockSize` path; do not conflate it with ordinary pre-splitting.
+- `zstd_compress_literals.c::ZSTD_compressLiterals()` owns literal thresholds, raw/RLE fallback, and Huffman-table state.
+- `huf_compress.c::HUF_compress_internal()` owns incompressibility sampling, histograms, table validation, and table reuse.
+- `huf_compress.c::HUF_optimalTableLog()` probes tree depths; removing rebuilds requires preserving the selected table, not merely the last candidate.
+- `zstd_compress_sequences.c::ZSTD_selectEncodingType()` chooses basic, repeated, RLE, or compressed FSE tables.
+- `zstd_compress.c::ZSTD_entropyCompressSeqStore()` integrates literals and sequences and enforces minimum compression gain.
+- `zstd_compress.c::ZSTD_initLocalDict()` already caches the prepared local dictionary across session-only resets.
+- `zstd_cwksp.h` owns reusable workspace allocation; inspect its phase and initialization invariants before proposing allocation reuse.
+- `lib/zstd.h` owns public and experimental parameter contracts, including stable buffers, size hints, dictionaries, and splitters.
+- `lib/decompress/zstd_decompress.c` owns frame/stream dispatch; `zstd_decompress_block.c` and `huf_decompress.c` own block and Huffman decoding.
+
+### Measurement and verification entry points
+
+- Build the local release CLI with `make -C programs -j8 zstd-release`; invoke `programs/zstd`, not a global installation.
+- `programs/Makefile` owns CLI feature detection and hashed object directories; `lib/libzstd.mk` owns compiler defaults.
+- `programs/benchzstd.c` and `benchfn.c` own `-b` timing; use repeated `programs/zstd -b3 -e3 -i1 CORPUS` runs for an initial signal.
+- A reproducible source corpus is `git archive --format=tar --output=CORPUS REVISION lib programs`.
+- Separate codec timing from filesystem timing; `-b` does not measure ordinary CLI file I/O.
+- For sparse output, compare `strace -f -c -e trace=lseek,write` counts against `--no-sparse` on real destination files.
+- Do not use `/dev/null` as sparse-output evidence: destination detection disables sparse mode there.
+- glibc may translate `fseek(..., 0, SEEK_CUR)` into absolute `lseek(..., SEEK_SET)` calls.
+- For metadata prepasses, `strace -k -e trace=newfstatat` identifies call stacks; optimized helper functions may be inlined.
+- `tests/cli-tests/run.py` accepts test paths relative to `tests/cli-tests/` and explicit `--zstd`/`--datagen` paths.
+- Existing focused cases include `compression/multiple-files.sh`, `compression/stream-size.sh`, and `compression/adapt.sh`.
+- Literal and dictionary contracts have `compression/compress-literals.sh` and `dictionaries/golden.sh`.
+- `tests/playTests.sh` owns sparse, odd-sized sparse, async-I/O, and patch-from scenarios; inspect those sections before choosing a broader run.
+- `tests/regression/README.md` documents corpus-based ratio comparisons; do not overwrite `results.csv` merely to run an investigation.
+
+### Avoid rediscovering false positives
+
+- Batch compression already reuses its context, buffers, and prepared dictionary; generic pooling advice adds no new optimization.
+- Huffman sampling, table reuse, literal thresholds, and block-splitting heuristics already exist.
+- Stronger levels, larger windows, forced literal compression, and extra splitting are trade-offs, not free ratio improvements.
+- The 2026-10-23 source-corpus baseline was 4,014,080 bytes → 738,793 bytes at level 3; it proves no improvement.
+- That baseline used GCC 13.3.0, release `-O3`, Ryzen 9 5950X, and three one-second benchmark runs.
+- Sparse syscall reduction is not a demonstrated speedup: nine local runs measured 71.2 ± 1.2 ms versus 69.5 ± 1.9 ms with `--no-sparse` on 64 MiB random data.
+- Those sparse timings used `--no-asyncio`, warm files, and the same release build; neither run implemented a source fix.
+- Historical sparse discussion includes an unsuccessful seek-reduction experiment, so avoid generic speed claims: https://github.com/facebook/zstd/issues/615
+- The 64 MiB integrity-check comparison favored enabled async I/O; it did not isolate read and write workers.
+- An unused adaptive-statistics lock is a candidate only until profiling establishes material cost.
+- Test-mode write jobs return without writing, but eliminating their worker requires preserving read overlap and buffer ownership.
+
 ## Runtime/Tooling Preferences
 
 Use GNU Make (`gmake` where system `make` is incompatible) and a C compiler as the default toolchain.
