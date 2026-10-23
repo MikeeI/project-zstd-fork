@@ -166,9 +166,10 @@ ZSTD_selectEncodingType(
     ZSTD_STATIC_ASSERT(ZSTD_defaultDisallowed == 0 && ZSTD_defaultAllowed != 0);
     if (mostFrequent == nbSeq) {
         *repeatMode = FSE_repeat_none;
-        if (isDefaultAllowed && nbSeq <= 2) {
-            /* Prefer set_basic over set_rle when there are 2 or fewer symbols,
-             * since RLE uses 1 byte, but set_basic uses 5-6 bits per symbol.
+        if (isDefaultAllowed && nbSeq == 1) {
+            /* Prefer set_basic for one sequence: its final FSE state uses
+             * 5-6 bits instead of the 1-byte RLE table description.
+             * With two sequences, the additional symbol makes RLE no larger.
              * If basic encoding isn't possible, always choose RLE.
              */
             DEBUGLOG(5, "Selected set_basic");
