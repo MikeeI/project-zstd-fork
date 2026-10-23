@@ -1,6 +1,6 @@
-# ISSUE-003 — Compression tuning: retain the measured level trade-off
+# ISSUE-003 — Compression level comparison (not a repository issue)
 
-State: Investigating
+State: Archived
 Authorized-Work: Not-Selected
 Publication-Target: Not-Selected
 External-Reference: Not published.
@@ -15,7 +15,7 @@ Source: `upstream/dev@49cf51799ea051457f57243527aa2058f999f005`
 
 Root-Cause [O]: The initial investigation treated low implementation effort as requiring a CPU-free compression gain and omitted a comparison of existing settings.
 Review mapping: A1, an added reporting and tuning decision, not a zstd source defect.
-This record preserves the measured alternative without inventing an upstream issue or recommending a global default change.
+This entry was misclassified as an open finding; it is archived to preserve its ID and measured evidence.
 
 ## Reach-and-Impact
 
@@ -40,10 +40,10 @@ Contribution fit: Internal decision support only; existing compression levels an
 
 ## Proposed-Change
 
-Include the measured level-3/6 size-versus-CPU comparison in the decision record.
-Keep the result scoped to the tested file and distinguish implementation effort from runtime cost.
-Do not change the CLI default, tune global presets, or assume the user prefers size over compression speed.
-This ledger entry fulfills the reporting addition; adopting a setting remains a separate workload-specific decision.
+No repository correction is proposed.
+The original proposal was to report the measured level-3/6 size-versus-CPU trade-off without changing defaults.
+That is usage guidance, not an issue; reusable investigation rules belong in `AGENTS.md`.
+Archiving does not invalidate the recorded measurements or authorize adopting a setting.
 
 ## Scope-and-Constraints
 
@@ -84,6 +84,14 @@ A production recommendation lacks representative user data and a size/speed/memo
 
 ## Next-Action
 
-Summary: Compare representative workload tradeoffs
-Action: Evaluate the existing levels on a user-selected representative corpus against its size, throughput, and memory objective before recommending adoption.
-Done-When: A workload-scoped comparison supports a specific setting or explicitly rejects adoption.
+Summary: —
+Action: None.
+Done-When: None.
+
+## Archive
+
+Archive-Reason: Finding-Invalidated
+Detail: None.
+Evidence: The Root-Cause and Prior-Art sections identify a reporting omission and existing parameter trade-off, not a repository defect.
+The user explicitly requested genuine issues rather than tips; no bounded repository correction was established.
+Checked: 2026-10-23
